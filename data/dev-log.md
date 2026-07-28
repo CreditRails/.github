@@ -44,3 +44,8 @@
 [2026-06-25T10:30:00] docs: SEP-1 + SEP-10
 [2026-06-25T14:15:00] docs: stellar-rpc-providers.md
 [2026-06-25T17:00:00] docs: SEP-45
+[2026-07-28T16:10:00] indexer: multi-network config (testnet + mainnet)
+[2026-07-28T16:35:00] indexer: full account activity (operations + effects), exact wallet age
+[2026-07-28T17:05:00] indexer: DeFi detection — Blend + Soroswap registry, live get_positions
+[2026-07-28T17:20:00] indexer: defiParticipation scoring factor
+[2026-07-28T17:40:00] sdk: score.get() rewired to real indexer output
