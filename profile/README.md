@@ -19,26 +19,23 @@
 
 ## The solution
 
-```
-Wallet Activity (Stellar)
-      │
-      ▼
- Horizon Indexer    →  extracts payments, savings, remittances, repayments
-      │
-      ▼
- Scoring Engine     →  weighted model → score 300–850 + risk tier (A–D)
-      │
-      ▼
- Soroban Contract   →  score anchored on-chain, immutable audit trail
-      │
-      ▼
- DID Credential     →  W3C Verifiable Credential issued to the user
-      │
-      ▼
- Apps & Protocols   →  read score via API or direct contract call
-```
+CreditRails reads what's already public on Stellar and turns it into a credit signal no bank statement ever provided. An indexer streams a wallet's full Horizon history — payments, savings behavior, remittance patterns, DeFi repayments — and a transparent, weighted scoring model converts that activity into a 300–850 score with a risk tier, using the same seven factors for every wallet, mainnet or testnet.
 
-Connect a wallet once. Any lending protocol, payments app, or anchor can query a credit profile with a single call — no forms, no bank statements, no intermediaries.
+The score doesn't just sit in a database. It's written on-chain through a Soroban contract, so it's auditable and tamper-evident rather than something CreditRails could quietly change. From there it's issued as a W3C Verifiable Credential the user actually holds — not a record CreditRails keeps custody of — so they can present it anywhere without re-exposing their raw transaction history each time.
+
+Connect a wallet once. Any lending protocol, payments app, or anchor can read a credit profile from the API or the contract directly — no forms, no bank statements, no intermediary re-underwriting the same person from scratch.
+
+---
+
+## What's live today
+
+- **Real-time scoring on testnet** — the indexer pulls a wallet's full Horizon history (payments, trades, operations, effects) and computes a live 300–850 score, no mocked data.
+- **Blend DeFi position detection** — live reads against Blend lending pools surface active collateral, supply, and liability positions as part of the score.
+- **On-chain score commit** — a deployed `credit_score` Soroban contract on testnet can be written to directly from the indexer, anchoring a wallet's score on-chain.
+- **Wallet-connected dashboard** — connect a Stellar wallet and see your real score, factor breakdown, and transaction history computed live, not a demo.
+- **Client SDK** (`@creditrails/sdk`) — TypeScript client for the real scoring API.
+
+Building next: W3C Verifiable Credential issuance (contract exists, not yet wired to the indexer), mainnet deployment, a live price oracle, and Blend score→loan-terms mapping.
 
 ---
 
@@ -49,7 +46,7 @@ Connect a wallet once. Any lending protocol, payments app, or anchor can query a
 | [**contracts**](https://github.com/CreditRails/contracts) | Soroban smart contracts — `credit_score` and `credential_registry` |
 | [**indexer**](https://github.com/CreditRails/indexer) | Streams Horizon ledger data, runs the scoring model, writes scores on-chain |
 | [**frontend**](https://github.com/CreditRails/frontend) | Wallet-connected dashboard + admin panel |
-| [**sdk**](https://github.com/CreditRails/sdk) | Client SDK for querying scores and verifying credentials |
+| [**sdk**](https://github.com/CreditRails/sdk) | Client SDK for querying scores |
 
 Reference docs (architecture, API, scoring model, Stellar/Soroban notes) live in [`data/`](https://github.com/CreditRails/.github/tree/main/data) in this repo.
 
@@ -57,35 +54,37 @@ Reference docs (architecture, API, scoring model, Stellar/Soroban notes) live in
 
 ## Score factors
 
+Seven weighted factors, each 0–100, mapped onto the 300–850 score:
+
 | Factor | Weight | What it measures |
 |---|---|---|
-| Payment History | 30% | On-time, late, and missed payments |
-| Transaction Volume | 22% | Consistent monthly financial activity |
-| Account Age | 18% | How long the wallet has been active |
-| DeFi Participation | 12% | Engagement with Blend, AMMs, and DeFi protocols |
-| Credit Diversity | 10% | Range of transaction types |
-| Wallet Health | 8% | Asset diversification and balance consistency |
+| Payment History | 27% | Regularity/consistency of inflows and outflows |
+| Transaction Volume | 18% | Total USD moved in + out, log-scaled |
+| Account Age | 13% | Days since the wallet's first observed activity |
+| Savings Trend | 13% | Net accumulation vs. total flow |
+| DeFi Participation | 11% | Active lending positions + protocol diversity (Blend, Soroswap) |
+| Remittance Regularity | 9% | Recurring same-counterparty inflows (payroll/remittance pattern) |
+| Diversity | 9% | Distinct assets + counterparties touched |
+
+Full formula and per-factor math: [`data/scoring-methodology.md`](https://github.com/CreditRails/.github/blob/main/data/scoring-methodology.md).
 
 ## Blend integration
 
-Score sets **interest rate** and **max borrow limit** on Blend pools — higher score, lower rate, larger limit. Every repayment updates the score on-chain, building a flywheel: *score → better rate → repayment → better score.*
-
-| Score | Tier | Rate (USDC Pool) | Max Borrow |
-|---|---|---|---|
-| 800+ | A · Excellent | 3.0% | $20,000 |
-| 740–799 | B+ · Very Good | 5.2% | $12,500 |
-| 670–739 | B · Good | 7.8% | $6,000 |
-| 580–669 | C · Fair | 11.5% | $2,500 |
+Score-aware lending is the target design: higher score → lower rate → larger limit → repayment → better score. Today, the indexer already detects a wallet's live Blend positions (collateral, supply, liabilities) as a scoring input — the score→loan-terms mapping on the Blend side is the next piece being built, not yet live.
 
 ---
 
 ## API
 
+The real, running indexer API (see [`indexer`](https://github.com/CreditRails/indexer)):
+
 ```
-GET  /score/{wallet}        → credit score + risk tier
-GET  /credential/{wallet}   → W3C Verifiable Credential (JWT)
-POST /verify                → verify a user-submitted credential
+GET  /api/public/score/{wallet}?network=   → public, unauthenticated dry-run score
+GET  /api/score/{wallet}?network=          → same, admin-token gated
+POST /api/score/{wallet}/commit?network=   → writes the score on-chain (testnet only)
 ```
+
+No credential-issuance or verification endpoint exists yet — see "Building next" above.
 
 <div align="center">
   <sub>Built on Stellar. Powered by on-chain behavior.</sub>
